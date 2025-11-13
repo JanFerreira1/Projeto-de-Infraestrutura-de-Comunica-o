@@ -2,51 +2,80 @@
 from packet import Packet
 from scapy.all import sniff
 from scapy.layers.l2 import Ether
+from utils import append_packet_log
 
 class EthernetAnalyzer:
     def __init__(self):
-        print("Analisador Ethernet inicializado (pronto para scapy).")
+        print("Analisador Ethernet inicializado (pronto para Scapy).")
 
     def analyze_scapy_packet(self, scapy_packet):
         """
-        Analisa um objeto de pacote REAL do scapy e o transforma no nosso objeto Packet.
+        Analisa um pacote REAL do Scapy e salva nos logs usando nossa classe Packet.
         """
         try:
-            # Garante que é um pacote Ethernet (Camada 2)
+            # Garantir que o pacote tem camada Ethernet (Camada 2)
             if Ether in scapy_packet:
                 eth_layer = scapy_packet[Ether]
-                
-                # Extrai dados do pacote scapy
+
+                # Extrai dados do scapy
                 packet_data = {
                     "source": eth_layer.src,
                     "destination": eth_layer.dst,
                     "type": hex(eth_layer.type)
                 }
 
-                # Usa a nossa classe Packet para formatar a saída
+                # Cria nosso objeto Packet
                 packet = Packet(
                     source_mac=packet_data["source"],
                     destination_mac=packet_data["destination"],
                     eth_type=packet_data["type"]
                 )
-                
-                # Pede para a Pamela (Estrutura de dados e logs) implementar a função de log aqui!
-                # print(f"Pacote bruto do Scapy: {scapy_packet.summary()}")
+
+                # Exibe no terminal
                 print("-" * 40)
                 print(f"Pacote Capturado: {packet}")
                 print("-" * 40)
 
+                # Salva no log
+                append_packet_log({
+                    "source": packet.source_mac,
+                    "destination": packet.destination_mac,
+                    "eth_type": packet.eth_type
+                })
+
         except Exception as e:
-            print(f"Erro ao analisar pacote scapy: {e}")
-            
+            print(f"[ERRO] Falha ao analisar pacote: {e}")
+
     def start_capture(self, iface="Intel(R) Wireless-AC 9462", count=5, bpf_filter="ether"):
         """
-        Inicia a captura de pacotes na interface especificada com um filtro BPF.
-        O filtro padrão é 'ether' (Camada 2). Use 'arp' para Pacotes ARP ou 'ip' para IPv4.
+        Inicia a captura de pacotes com filtro BPF.
         """
-        print(f"\nIniciando a captura na interface '{iface}'. Aguardando {count} pacote(s) com filtro '{bpf_filter}'...")
-        
-        # O argumento 'filter' agora usa a variável bpf_filter
-        sniff(iface=iface, count=count, prn=self.analyze_scapy_packet, filter=bpf_filter, store=0)
-        
-        print("Captura finalizada.")
+        print(f"\nIniciando captura na interface '{iface}'...")
+        print(f"Aguardando {count} pacote(s) | Filtro: '{bpf_filter}'\n")
+
+        try:
+            sniff(
+                iface=iface,
+                count=count,
+                prn=self.analyze_scapy_packet,
+                filter=bpf_filter,
+                store=0
+            )
+
+        except PermissionError:
+            print("\n[ERRO] Permissão negada!")
+            print("Execute o programa como ADMINISTRADOR (Windows) ou com sudo (Linux).")
+
+        except OSError as e:
+            print(f"\n[ERRO] Interface inválida ou inacessível: {iface}")
+            print(f"Sistema retornou: {e}")
+
+        except KeyboardInterrupt:
+            print("\n[INFO] Captura interrompida pelo usuário (Ctrl+C).")
+
+        except Exception as e:
+            print(f"\n[ERRO INESPERADO] {e}")
+
+        finally:
+            print("Captura finalizada.")
+
